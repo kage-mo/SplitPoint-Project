@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  node_app:
+    build:
+      context: .
+      dockerfile: Dockerfile1
+    ports:
+      - "3001:3001"
+
+  express_app:
+    build:
+      context: .
+      dockerfile: Dockerfile2
+    ports:
+      - "5000:5000"
