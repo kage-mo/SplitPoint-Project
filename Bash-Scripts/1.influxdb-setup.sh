@@ -25,13 +25,13 @@ influx auth active --id $TOKEN_INFLUX_ID
 # Step 5: Get the config file from GitHub
 sudo apt install git -y
 TARGET_DIR="/home/kage/Downloads/splitpoint-project"
-REPO_URL="https://github.com/kage-mo/splitpoint-project"
+REPO_URL="https://github.com/kage-mo/SplitPoint-Project"
 git clone "$REPO_URL" "$TARGET_DIR"
 
 # Step 6: Create configurations for Telegraf 
 influx telegrafs create \
   --name "network-monitoring" \
   --description "split-point-project-telegraf-config" \
-  --file $TARGET_DIR/telegraf-splitpoint-config.conf
+  --file $TARGET_DIR/configs/telegraf-splitpoint-config.conf
 
 echo "InfluxDB installed, configured, and setup successfully."
