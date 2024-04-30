@@ -6,7 +6,8 @@ git clone "$REPO_URL" "$TARGET_DIR"
 echo "repo successfuly cloned..."
 
  
- SCRIPTS_FOLDER="$TARGET_DIR/Bash-Scripts"
+SCRIPTS_FOLDER="$TARGET_DIR/Bash-Scripts"
+chmod -R +x "$SCRIPTS_FOLDER"
 # Iterate over each file in the folder
 for script in "$SCRIPTS_FOLDER"/*; do
     # Check if the file is a regular file and executable
