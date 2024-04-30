@@ -1,6 +1,6 @@
 echo "cloning repo..."
 sudo apt install git -y
-TARGET_DIR="/home/kage/Downloads/splitpoint-project"
+TARGET_DIR="/home/kage/Desktop/splitPoint/repo"
 REPO_URL="https://github.com/kage-mo/SplitPoint-Project"
 git clone "$REPO_URL" "$TARGET_DIR"
 echo "repo successfuly cloned..."

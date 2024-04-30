@@ -16,4 +16,5 @@ sudo apt-get autoremove --purge
 
 
 sudo apt-get clean
+sudo systemctl daemon-reload
 echo "InfluxDB, Telegraf, and Grafana have been removed from your system."
