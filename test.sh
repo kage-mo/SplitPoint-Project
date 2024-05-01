@@ -1,4 +1,7 @@
-# Configuration for telegraf agent
+#!/bin/bash
+mkdir configs
+touch configs/ec2-influxdb.conf
+cat # Configuration for telegraf agent
 [agent]
   interval = "30s"
   round_interval = true
@@ -41,3 +44,4 @@
 [[inputs.dns_query]]
   ## servers to query
   servers = ["8.8.8.8"]
+>> configs/ec2-influxdb.conf

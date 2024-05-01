@@ -1,6 +1,10 @@
 const ping = require('ping'); // Import the 'ping' library for ICMP testing
 const traceroute = require('traceroute');
 const geoip = require('fast-geoip');
+const axios = require('axios');
+
+
+
 
 // Define a function to perform ICMP tests
 async function performICMPTests() {
@@ -64,7 +68,6 @@ async function performICMPTests() {
       console.log(`Pinging ${target}...`);
       const pingResult = await ping.promise.probe(target, { timeout: 10 });
       //console.log('Ping result:', pingResult);
-  
       console.log(`Tracerouting to ${target}...`);
       const hops = await new Promise((resolve, reject) => {
           traceroute.trace(target, (err, hops) => {
@@ -77,32 +80,73 @@ async function performICMPTests() {
           });
       });
   
-      console.log('Traceroute result:');
+      
       let packetHops = [];
       for (const hop of hops) {
           if (typeof hop === 'object') {
+              
               // Handle JSON objects with IP addresses and latencies
               const ip = Object.keys(hop)[0];
               const latency = hop[ip];
               // Assuming you have the geoip module imported and configured
               const geoInfo = await geoip.lookup(ip);
+              const apiUrl = `https://api.iplocation.net/?ip=${ip}`;
+              const response = await axios.get(apiUrl);
+              const isp = response.data.isp;
+              console.log(response.data);
+              console.log(isp);
+             //console.log('The hop geo : ',geoInfo);
+              
               const hopInfo = {
                   ip: ip,
+                  isp: isp,
                   latency: parseFloat(latency),
                   lat:  parseFloat(geoInfo.ll[0]),
                   long: parseFloat(geoInfo.ll[1]),
                   city: geoInfo.city,
                   country: geoInfo.country,
+
               };
+             
               packetHops.push(hopInfo);
+
               //console.log('pushing object to list: ', hopInfo);
           }
       }
-      return packetHops;
+      
+      return {
+        host: pingResult.inputHost,
+        response_time_ms: pingResult.time,
+        response_output: pingResult.output,
+        packet_loss:pingResult.packetLoss,
+        hops: packetHops,
+      };
   }
+
+  async function addICMPRequestAndHops(target) {
+    try {
+        // Perform network path to get hop data
+        const packetHops = await performNetworkPath(target);
+
+        // Insert ICMP request
+        const icmpRequestId = await insertICMPRequest(target);
+
+        // Insert hops associated with the ICMP request
+        const insertPromises = packetHops.map(hop => insertHop(icmpRequestId, hop));
+
+        // Wait for all insertions to complete
+        await Promise.all(insertPromises);
+
+        console.log("Data added successfully.");
+    } catch (error) {
+        console.error("Error adding data:", error);
+        throw error;
+    }
+}
 
 module.exports = {
     performICMPTests,
     performICMPIntervalTests,
-    performNetworkPath
+    performNetworkPath,
+    addICMPRequestAndHops
 }

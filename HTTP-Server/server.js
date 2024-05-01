@@ -1,108 +1,11 @@
 const express = require('express');
 const {queryGPT } = require('./utils/OpenAi');
-const {performICMPTests ,performICMPIntervalTests, performNetworkPath } = require('./utils/ICMPTests');
+const {performICMPTests ,performICMPIntervalTests, performNetworkPath, addICMPRequestAndHops } = require('./utils/ICMPTests');
+const {insertICMPRequest,insertICMPRequestHops,getLastPacketTraces} = require('./database/dbQueries')
 
 const app = express();
 const port = 3001;
 
-// Define a function to perform ICMP tests
-// async function performICMPTests() {
-//   const targets = ['example.org']; // List of endpoints to test
-//   const icmpResults = [];
-  
-//   for (const target of targets) {
-//     try {
-//       const res = await ping.promise.probe(target);
-//       const icmpObject = {
-//         //target: target,
-//         //alive: res.alive,
-//         test_value2: 0.5,
-//         responseTime: res.alive ? res.time : null,
-//         //packetLoss: res.packetLoss,
-//         reachability: 100 - (parseFloat(res.packetLoss) || 0),
-
-//       };
-//       console.log(typeof icmpObject.reachability)
-//       //console.log(icmpObject);
-//       icmpResults.push({
-//         target: target,
-//         //alive: res.alive,
-//         ping_responseTime: parseFloat(res.time),
-//         packetLoss: parseFloat(res.packetLoss),
-//         reachability: 100 - (parseFloat(res.packetLoss) || 0),
-
-//       });
-//     } catch (error) {
-//       console.error(`Error testing ICMP for ${target}:`, error);
-//       icmpResults.push({
-//         target: target,
-//         error: error.message
-//       });
-//     }
-//   }
-  
-//   return icmpResults;
-// }
-
-// async function performICMPIntervalTests(iterations) {
-//   const results = [];
-//   for (let i = 0; i < iterations; i++) {
-//       try {
-//           // Call the endpoint
-//           const response = await fetch('http://localhost:3001/monitoring/icmptests');
-//           const data = await response.json();
-//           results.push(data);
-//       } catch (error) {
-//           console.error('Error performing ICMP test:', error);
-//           results.push({ error: 'Internal server error' });
-//       }
-//       // Wait for 4 seconds before next call
-//       await new Promise(resolve => setTimeout(resolve, 4000));
-//   }
-//   return results;
-// }
-
-// // Function to perform ping and traceroute
-// async function performNetworkPath(target) {
-//     console.log(`Pinging ${target}...`);
-//     const pingResult = await ping.promise.probe(target, { timeout: 10 });
-//     //console.log('Ping result:', pingResult);
-
-//     console.log(`Tracerouting to ${target}...`);
-//     const hops = await new Promise((resolve, reject) => {
-//         traceroute.trace(target, (err, hops) => {
-//             if (err) {
-//                 console.error('Traceroute error:', err);
-//                 reject(err);
-//                 return;
-//             }
-//             resolve(hops);
-//         });
-//     });
-
-//     console.log('Traceroute result:');
-//     let packetHops = [];
-//     for (const hop of hops) {
-//         if (typeof hop === 'object') {
-//             // Handle JSON objects with IP addresses and latencies
-//             const ip = Object.keys(hop)[0];
-//             const latency = hop[ip];
-//             // Assuming you have the geoip module imported and configured
-//             const geoInfo = await geoip.lookup(ip);
-//             const hopInfo = {
-//                 ip: ip,
-//                 latency: parseFloat(latency),
-//                 lat:  parseFloat(geoInfo.ll[0]),
-//                 long: parseFloat(geoInfo.ll[1]),
-//                 city: geoInfo.city,
-//                 country: geoInfo.country,
-//             };
-//             packetHops.push(hopInfo);
-//             //console.log('pushing object to list: ', hopInfo);
-//         }
-//     }
-//     return packetHops;
-// }
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
@@ -115,7 +18,9 @@ app.use((req, res, next) => {
 app.get('/monitoring/icmptests/packetTrace', async(req,res) =>{
     try {
         const packetTrace = await performNetworkPath('example.org');
-        console.log(`sending packet trace: ${packetTrace.length} hops`);
+        const icmpRequestId = await insertICMPRequest(packetTrace.host,packetTrace.response_time_ms,packetTrace.packet_loss,packetTrace.response_output);
+        await insertICMPRequestHops(icmpRequestId,packetTrace.hops);
+        console.log(`sending packet trace: ${packetTrace.hops.length} hops`);
         //console.log(packetTrace);
         res.json(packetTrace);
     } catch (error) {
@@ -171,6 +76,51 @@ app.get('/gptSummarise', async (req, res) => {
       res.status(500).send(`Error in /gptSummarise: ${error}`);
   }
 });
+
+app.get('/gptPacketTraceSummarise', async (req, res) => {
+  try {
+      // Call the /monitoring/icmptests endpoint internally
+
+      //const icmpResponse = await fetch('http://localhost:3001/monitoring/icmptests');
+      //const icmpData = await icmpResponse.json();
+      const networkHops = await getLastPacketTraces();
+      // console.log(networkHops);
+
+      // const targetEndpoint = ""
+      // const results = await performNetworkPath(targetEndpoint);
+      const systemContext = `As a packet tracing analyst, you're poised to produce detailed and extensive reports based on your thorough analysis of the icmp_requests 
+      and network_hops data. These reports can delve deep into the intricacies of network pathways, offering comprehensive insights into connectivity, latency, and performance.
+
+      Harnessing HTML tables and paragraphs, you can create expansive documents that meticulously map out the journey of data packets, identifying patterns, anomalies,
+      and optimization opportunities across various network nodes.
+      Your commitment to producing comprehensive reports not only showcases your expertise but also provides invaluable resources for stakeholders to understand network health and make informed decisions.
+      So, dive into the data, explore its depths, and craft reports that are as exhaustive as they are enlightening.`;
+      
+
+      const userContext = `Below is a list of ICMP ping network packet hops. Please ensure your response is in HTML format. You are encouraged to use multiple paragraphs.
+
+      Please analyze the results and generate a detailed report written in HTML:
+      
+      ${JSON.stringify(networkHops)}`;
+      
+
+      const gptResponse = await queryGPT(systemContext,userContext);
+
+      // console.log('printing gpt Response');
+      // console.log(gptResponse);
+
+      // Return a response including data from both endpoints
+      res.send(`
+          ${gptResponse}
+      `);
+  } catch (error) {
+      console.error('Error in /gptSummarise:', error);
+      res.status(500).send(`Error in /gptSummarise: ${error}`);
+  }
+});
+
+
+
 
 
 
